@@ -1,0 +1,14 @@
+{
+  "name": "vibe-knowledge-show",
+  "version": "2.4.0",
+  "description": "1080p科普短视频网页渲染模板，鼓点动画、粒子背景、多主题、图片插入",
+  "type": "module",
+  "scripts": {
+    "dev": "hyperframe dev",
+    "render": "hyperframe render"
+  },
+  "devDependencies": {
+    "hyperframe": "^0.13.0"
+  },
+  "license": "MIT"
+}

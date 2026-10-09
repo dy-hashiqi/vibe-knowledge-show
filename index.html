@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Vibe Knowledge Show v2.4 Image+BeatSync+Theme</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      overflow: hidden;
+      width: 1920px;
+      height: 1080px;
+      font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    #stage {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+    }
+
+    .layer {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+    }
+
+    .text-container {
+      position: absolute;
+      left: 160px;
+      right: 160px;
+      top: 340px;
+      height: 400px;
+      z-index: 30;
+      pointer-events: none;
+    }
+
+    .image-container {
+      position: absolute;
+      inset:0;
+      z-index:25;
+      pointer-events:none;
+    }
+
+    .text-item {
+      position: absolute;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateY(40px);
+      will-change: transform, opacity;
+    }
+
+    .title-text {
+      font-size: 96px;
+      letter-spacing: 2px;
+    }
+
+    .content-text {
+      font-size: 64px;
+      line-height: 1.45;
+    }
+
+    .ending-text {
+      font-size: 80px;
+      letter-spacing: 4px;
+    }
+
+    .grain {
+      position: absolute;
+      inset: 0;
+      z-index: 40;
+      pointer-events: none;
+      opacity: 0.06;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    .vignette {
+      position: absolute;
+      inset: 0;
+      z-index: 35;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="farCanvas" class="layer"></canvas>
+    <canvas id="midCanvas" class="layer"></canvas>
+    <canvas id="nearCanvas" class="layer"></canvas>
+
+    <div class="image-container" id="imageWrap"></div>
+    <div class="text-container" id="textWrap"></div>
+
+    <div class="vignette" id="vignetteEl"></div>
+    <div class="grain"></div>
+  </div>
+
+  <script type="module">
+    import { timelineData } from "./scripts/timeline.js";
+    import { beatmap } from "./scripts/beatmap.js";
+    import { Camera } from "./scripts/camera.js";
+    import { FarLayer, MidLayer, NearLayer } from "./scripts/layers.js";
+    import { BeatController } from "./scripts/beatController.js";
+    import { LayerController } from "./scripts/layerController.js";
+    import { ThemeManager } from "./scripts/themeManager.js";
+    import { ImageManager } from "./scripts/imageManager.js";
+
+    const stage = document.getElementById("stage");
+    const textWrap = document.getElementById("textWrap");
+    const imageWrap = document.getElementById("imageWrap");
+    const vignetteEl = document.getElementById("vignetteEl");
+
+    const farCanvas = document.getElementById("farCanvas");
+    const midCanvas = document.getElementById("midCanvas");
+    const nearCanvas = document.getElementById("nearCanvas");
+
+    [farCanvas, midCanvas, nearCanvas].forEach(c => {
+      c.width = 1920;
+      c.height = 1080;
+    });
+
+    const camera = new Camera(stage);
+    const farLayer = new FarLayer(farCanvas);
+    const midLayer = new MidLayer(midCanvas);
+    const nearLayer = new NearLayer(nearCanvas);
+
+    const layers = new LayerController(farLayer, midLayer, nearLayer);
+    const themeManager = new ThemeManager("deepSpace");
+    const imageManager = new ImageManager(imageWrap);
+    const beatController = new BeatController({ camera, layers, textWrap, themeManager, imageManager });
+
+    // 段落主题切换 + 镜头
+    timelineData.forEach(item => {
+      if(item.theme){
+        gsap.delayedCall(item.start, ()=>{
+          themeManager.setTheme(item.theme, 0.8);
+        })
+      }
+      if (!item.camera) return;
+      const cam = item.camera;
+      const delay = item.start;
+      if (cam.action === "pushIn") camera.pushIn(cam.scale, cam.duration, delay);
+      if (cam.action === "pullOut") camera.pullOut(cam.scale, cam.duration, delay);
+      if (cam.action === "move") camera.moveTo(cam.x, cam.y, cam.duration, delay);
+    });
+
+    // 图片加载
+    timelineData.forEach(item=>{
+      if(item.image){
+        imageManager.addImage({
+          ...item.image,
+          start:item.start,
+          end:item.end
+        })
+      }
+    })
+
+    // 字幕渲染，动态绑定文字颜色
+    timelineData.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "text-item";
+      if (item.type === "title") div.classList.add("title-text");
+      else if (item.type === "ending") div.classList.add("ending-text");
+      else div.classList.add("content-text");
+      div.innerText = item.text;
+      textWrap.appendChild(div);
+
+      gsap.fromTo(div, { opacity: 0, y: 40 }, {
+        opacity: 1, y: 0, duration: 0.8, ease: "power2.out", delay: item.start
+      });
+      gsap.to(div, {
+        opacity: 0, y: -30, duration: 0.5, ease: "power2.in", delay: item.end - 0.4
+      });
+
+      // 每帧更新文字颜色
+      gsap.ticker.add(()=>{
+        const t = themeManager.update();
+        div.style.color = item.type === "title" || item.type === "ending" ? t.title : t.content;
+        stage.style.background = t.bg;
+        vignetteEl.style.background = `radial-gradient(circle at center, transparent 45%, rgba(0,0,0,${t.vignette}) 100%)`;
+      })
+    });
+
+    // 主渲染循环
+    let startTime = null;
+    function animate(timestamp) {
+      if (!startTime) startTime = timestamp;
+      const currentTime = (timestamp - startTime) / 1000;
+      const theme = themeManager.update();
+
+      beatController.update(currentTime, beatmap);
+      layers.update(camera.x, camera.y, theme);
+
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
